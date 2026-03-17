@@ -69,6 +69,7 @@ let pointerLocked = false;
 let yaw = 0;
 let pitch = 0;
 let lastMouseDX = 0;
+let menuOpen = true;
 
 const state = {
   mode: "free",
@@ -160,6 +161,16 @@ function unlockPointer() {
   if (pointerLocked) {
     document.exitPointerLock();
   }
+}
+
+function openMenu() {
+  menu.style.display = "flex";
+  menuOpen = true;
+}
+
+function closeMenu() {
+  menu.style.display = "none";
+  menuOpen = false;
 }
 
 function resetStats() {
@@ -336,7 +347,7 @@ function startFree() {
   resetMetrics();
   clearTargets();
   ensureTargets();
-  menu.style.display = "none";
+  closeMenu();
   updateHud();
   lockPointer();
 }
@@ -374,7 +385,7 @@ function runCalibrationStage() {
   resetMetrics();
   clearTargets();
   ensureTargets();
-  menu.style.display = "none";
+  closeMenu();
   updateHud();
   lockPointer();
 }
@@ -415,7 +426,7 @@ function normalize(value, min, max, invert = false) {
 function finishCalibration() {
   unlockPointer();
   state.mode = "free";
-  menu.style.display = "flex";
+  openMenu();
   resultSection.hidden = false;
   tableSection.hidden = false;
 
@@ -538,7 +549,7 @@ window.addEventListener("keydown", (e) => {
   keys.add(e.code);
   if (e.code === "Escape") {
     unlockPointer();
-    menu.style.display = "flex";
+    openMenu();
   }
 });
 
@@ -547,6 +558,7 @@ window.addEventListener("keyup", (e) => {
 });
 
 window.addEventListener("mousedown", (e) => {
+  if (menuOpen) return;
   if (e.button === 0) {
     if (!pointerLocked) {
       lockPointer();
@@ -567,13 +579,16 @@ window.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("click", () => {
+  if (menuOpen) return;
   if (!pointerLocked) lockPointer();
 });
 
 document.addEventListener("pointerlockchange", () => {
   pointerLocked = document.pointerLockElement === canvas;
   if (pointerLocked) {
-    menu.style.display = "none";
+    closeMenu();
+  } else if (state.mode !== "calibration") {
+    openMenu();
   }
 });
 
@@ -680,3 +695,10 @@ applyCalibrationHint();
 loadPreset();
 updatePresetStatus();
 animate();
+menu.addEventListener("mousedown", (e) => {
+  e.stopPropagation();
+});
+
+menu.addEventListener("click", (e) => {
+  e.stopPropagation();
+});
