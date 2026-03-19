@@ -195,3 +195,20 @@ input#shareCodeInput {
 #app.menu-open #crosshair {
   display: none;
 }
+#app {
+  position: relative;
+}
+
+#scene {
+  position: absolute;
+  inset: 0;
+}
+
+#hud {
+  z-index: 5;
+}
+
+#menu {
+  z-index: 10;
+  pointer-events: auto;
+}
