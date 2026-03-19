@@ -1,7 +1,8 @@
-﻿import * as THREE from "three";
+import * as THREE from "three";
 import "./style.css";
 
 const canvas = document.querySelector("#scene");
+const appRoot = document.querySelector("#app");
 const modeLabel = document.querySelector("#modeLabel");
 const timeLabel = document.querySelector("#timeLabel");
 const scoreLabel = document.querySelector("#scoreLabel");
@@ -166,11 +167,13 @@ function unlockPointer() {
 function openMenu() {
   menu.style.display = "flex";
   menuOpen = true;
+  appRoot.classList.add("menu-open");
 }
 
 function closeMenu() {
   menu.style.display = "none";
   menuOpen = false;
+  appRoot.classList.remove("menu-open");
 }
 
 function resetStats() {
@@ -343,6 +346,7 @@ function startFree() {
   state.targetCount = 3;
   state.drillDuration = 20;
   state.currentDrill = drillSelect.value;
+  setSensitivity(Number(sensRange.value));
   resetStats();
   resetMetrics();
   clearTargets();
@@ -695,6 +699,7 @@ applyCalibrationHint();
 loadPreset();
 updatePresetStatus();
 animate();
+openMenu();
 menu.addEventListener("mousedown", (e) => {
   e.stopPropagation();
 });
