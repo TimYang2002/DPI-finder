@@ -433,4 +433,289 @@ function finishStage() {
 function normalize(value, min, max, invert = false) {
   if (max === min) return 1;
   const clamped = (value - min) / (max - min);
-  const normalized = THREE.MathUtils.clamp(clamped, 0
+  const normalized = THREE.MathUtils.clamp(clamped, 0, 1);
+  return invert ? 1 - normalized : normalized;
+}
+
+function finishCalibration() {
+  unlockPointer();
+  state.mode = "free";
+  sensRange.disabled = false;
+  openMenu();
+  resultSection.hidden = false;
+  tableSection.hidden = false;
+
+  const results = state.calibration.results;
+  const minRT = Math.min(...results.map((r) => r.avgReaction));
+  const maxRT = Math.max(...results.map((r) => r.avgReaction));
+  const minTTK = Math.min(...results.map((r) => r.avgTtk));
+  const maxTTK = Math.max(...results.map((r) => r.avgTtk));
+  const minErr = Math.min(...results.map((r) => r.avgError));
+  const maxErr = Math.max(...results.map((r) => r.avgError));
+
+  results.forEach((r) => {
+    const accScore = r.accuracy;
+    const rtScore = normalize(r.avgReaction, minRT, maxRT, true);
+    const ttkScore = normalize(r.avgTtk, minTTK, maxTTK, true);
+    const errScore = normalize(r.avgError, minErr, maxErr, true);
+    const balanceScore = 1 - Math.abs(r.balance - 0.5) * 2;
+
+    r.score =
+      accScore * 0.35 +
+      rtScore * 0.25 +
+      ttkScore * 0.15 +
+      errScore * 0.15 +
+      balanceScore * 0.1;
+  });
+
+  const ranked = [...results].sort((a, b) => b.score - a.score);
+  const best = ranked[0];
+  const top3 = ranked.slice(0, 3).map((r) => r.sens.toFixed(2));
+
+  recommendLabel.textContent = `建議靈敏度: ${best.sens.toFixed(2)}`;
+  recommendDetail.textContent = `候選最佳區間: ${top3.join(" / ")}`;
+  state.lastRecommendation = {
+    sens: best.sens,
+    top3,
+    mode: state.calibration.mode,
+    time: new Date().toISOString()
+  };
+
+  resultsTable.innerHTML = "";
+  const header = ["Sens", "命中率", "反應", "TTK", "角度誤差", "分數"];
+  header.forEach((label) => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.textContent = label;
+    resultsTable.appendChild(cell);
+  });
+
+  state.calibration.results.forEach((r) => {
+    const cells = [
+      r.sens.toFixed(2),
+      `${Math.round(r.accuracy * 100)}%`,
+      r.avgReaction ? r.avgReaction.toFixed(2) + "s" : "—",
+      r.avgTtk ? r.avgTtk.toFixed(2) + "s" : "—",
+      r.avgError.toFixed(1) + "°",
+      r.score.toFixed(3)
+    ];
+
+    cells.forEach((text) => {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.textContent = text;
+      resultsTable.appendChild(cell);
+    });
+  });
+
+  updatePresetStatus();
+  setUserSensitivity(state.userSens);
+}
+
+function update(dt) {
+  if (pointerLocked) {
+    const speed = 4;
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    const move = new THREE.Vector3();
+
+    if (keys.has("KeyW")) move.add(forward);
+    if (keys.has("KeyS")) move.sub(forward);
+    if (keys.has("KeyA")) move.sub(right);
+    if (keys.has("KeyD")) move.add(right);
+
+    if (move.lengthSq() > 0) {
+      move.normalize().multiplyScalar(speed * dt);
+      camera.position.add(move);
+    }
+  }
+
+  if (state.mode === "calibration") {
+    state.timeLeft -= dt;
+    if (state.timeLeft <= 0) {
+      finishStage();
+    }
+  }
+
+  updateTargets(dt);
+  updateHud();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = (now - lastFrameTime) / 1000;
+  lastFrameTime = now;
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+let lastFrameTime = performance.now();
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.addEventListener("keydown", (e) => {
+  keys.add(e.code);
+  if (e.code === "Escape") {
+    unlockPointer();
+    openMenu();
+  }
+});
+
+window.addEventListener("keyup", (e) => {
+  keys.delete(e.code);
+});
+
+window.addEventListener("mousedown", (e) => {
+  if (menuOpen) return;
+  if (e.button === 0) {
+    if (!pointerLocked) {
+      lockPointer();
+      return;
+    }
+    shoot();
+  }
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!pointerLocked) return;
+  const sensScale = state.currentSens * 0.002;
+  yaw -= e.movementX * sensScale;
+  pitch -= e.movementY * sensScale;
+  pitch = THREE.MathUtils.clamp(pitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+  camera.rotation.set(pitch, yaw, 0, "YXZ");
+  lastMouseDX = e.movementX;
+});
+
+canvas.addEventListener("click", () => {
+  if (menuOpen) return;
+  if (!pointerLocked) lockPointer();
+});
+
+document.addEventListener("pointerlockchange", () => {
+  pointerLocked = document.pointerLockElement === canvas;
+  if (pointerLocked) {
+    closeMenu();
+  } else if (state.mode !== "calibration") {
+    openMenu();
+  }
+});
+
+sensRange.addEventListener("input", (e) => {
+  const value = Number(e.target.value);
+  setUserSensitivity(value);
+});
+
+playBtn.addEventListener("click", () => {
+  startFree();
+});
+
+calibrateBtn.addEventListener("click", () => {
+  startCalibration("standard");
+});
+
+quickBtn.addEventListener("click", () => {
+  startCalibration("quick");
+});
+
+precisionBtn.addEventListener("click", () => {
+  startCalibration("precision");
+});
+
+drillSelect.addEventListener("change", (e) => {
+  state.currentDrill = e.target.value;
+  clearTargets();
+  ensureTargets();
+  updateHud();
+});
+
+savePresetBtn.addEventListener("click", () => {
+  const payload = state.lastRecommendation
+    ? state.lastRecommendation
+    : { sens: state.userSens, top3: [state.userSens.toFixed(2)], mode: "manual", time: new Date().toISOString() };
+  localStorage.setItem("fps-sens-preset", JSON.stringify(payload));
+  updatePresetStatus();
+});
+
+makeShareBtn.addEventListener("click", async () => {
+  const payload = state.lastRecommendation
+    ? state.lastRecommendation
+    : { sens: state.userSens, top3: [state.userSens.toFixed(2)], mode: "manual", time: new Date().toISOString() };
+  const json = JSON.stringify(payload);
+  const code = btoa(unescape(encodeURIComponent(json)));
+  shareCodeInput.value = code;
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(code);
+  }
+});
+
+applyShareBtn.addEventListener("click", () => {
+  try {
+    const decoded = decodeURIComponent(escape(atob(shareCodeInput.value.trim())));
+    const payload = JSON.parse(decoded);
+    if (payload?.sens) {
+      setUserSensitivity(Number(payload.sens));
+      localStorage.setItem("fps-sens-preset", JSON.stringify(payload));
+      updatePresetStatus();
+    }
+  } catch (err) {
+    presetStatus.textContent = "分享碼無效";
+  }
+});
+
+function updatePresetStatus() {
+  const data = localStorage.getItem("fps-sens-preset");
+  if (!data) {
+    presetStatus.textContent = "尚未儲存";
+    return;
+  }
+  try {
+    const payload = JSON.parse(data);
+    const date = payload.time ? new Date(payload.time) : null;
+    const when = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}` : "";
+    presetStatus.textContent = `已儲存: ${Number(payload.sens).toFixed(2)} ${when ? `(${when})` : ""}`;
+  } catch {
+    presetStatus.textContent = "尚未儲存";
+  }
+}
+
+function applyCalibrationHint() {
+  calibrationHint.textContent = "校準流程: 7 個靈敏度，每段 20 秒";
+}
+
+function loadPreset() {
+  const data = localStorage.getItem("fps-sens-preset");
+  if (!data) return;
+  try {
+    const payload = JSON.parse(data);
+    if (payload?.sens) {
+      setUserSensitivity(Number(payload.sens));
+      shareCodeInput.value = "";
+    }
+  } catch {
+    // ignore corrupted data
+  }
+}
+
+setUserSensitivity(0.35);
+updateHud();
+ensureTargets();
+applyCalibrationHint();
+loadPreset();
+updatePresetStatus();
+animate();
+openMenu();
+menu.addEventListener("mousedown", (e) => {
+  e.stopPropagation();
+});
+
+menu.addEventListener("click", (e) => {
+  e.stopPropagation();
+});
