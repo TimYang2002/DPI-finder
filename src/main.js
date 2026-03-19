@@ -12,6 +12,8 @@ const accLabel = document.querySelector("#accLabel");
 const sensLabel = document.querySelector("#sensLabel");
 const sensRange = document.querySelector("#sensRange");
 const sensValue = document.querySelector("#sensValue");
+const dpiInput = document.querySelector("#dpiInput");
+const edpiValue = document.querySelector("#edpiValue");
 const playBtn = document.querySelector("#playBtn");
 const menu = document.querySelector("#menu");
 
@@ -92,6 +94,13 @@ function setUserSensitivity(value) {
   sensRange.value = value.toFixed(2);
   sensValue.textContent = value.toFixed(2);
   setSensitivity(value);
+  updateEdpi();
+}
+
+function updateEdpi() {
+  const dpi = Number(dpiInput.value) || 0;
+  const edpi = dpi * state.userSens;
+  edpiValue.textContent = edpi.toFixed(0);
 }
 
 function lockPointer() {
@@ -272,11 +281,16 @@ sensRange.addEventListener("input", (e) => {
   setUserSensitivity(value);
 });
 
+dpiInput.addEventListener("input", () => {
+  updateEdpi();
+});
+
 playBtn.addEventListener("click", () => {
   startFree();
 });
 
 setUserSensitivity(0.35);
+updateEdpi();
 updateHud();
 ensureTargets();
 animate();
