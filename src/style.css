@@ -188,3 +188,10 @@ input#shareCodeInput {
     align-items: stretch;
   }
 }
+#app.menu-open #scene {
+  pointer-events: none;
+}
+
+#app.menu-open #crosshair {
+  display: none;
+}
