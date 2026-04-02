@@ -12,6 +12,58 @@
   const supabaseAnonKey = 'sb_publishable_9hC0ccCj3t9gk6O6T3LKhw_FLvAn7Tu'
 
   const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey)
+      <script>
+  // 存分數
+  async function saveScore(score) {
+    const { data, error } = await supabase
+      .from('scores')
+      .insert([{ score }])  // 將分數存進資料表
+
+    if (error) {
+      console.error('存分數失敗', error)
+    } else {
+      console.log('分數已存入資料庫', data)
+    }
+  }
+</script>
+    <script>
+  // 假設遊戲結束時呼叫
+  const playerScore = 150
+  saveScore(playerScore)
+</script>
+    <script>
+  // 讀排行榜
+  async function getTopScores() {
+    const { data, error } = await supabase
+      .from('scores')
+      .select('*')               // 取出所有欄位
+      .order('score', { ascending: false })  // 由高到低排序
+      .limit(10)                // 只取前 10 筆
+
+    if (error) {
+      console.error('讀排行榜失敗', error)
+      return []
+    }
+
+    console.log('排行榜資料', data)
+    return data
+  }
+</script>
+    <script>
+  getTopScores().then(top => {
+    top.forEach((item, index) => {
+      console.log(`#${index+1}: 分數 ${item.score}`)
+    })
+  })
+</script>
+    <div id="leaderboard"></div>
+
+<script>
+  getTopScores().then(top => {
+    const board = document.getElementById('leaderboard')
+    board.innerHTML = top.map((item, i) => `<p>#${i+1}: ${item.score}</p>`).join('')
+  })
+</script>
 </script>
     <div id="app">
       <canvas id="scene"></canvas>
