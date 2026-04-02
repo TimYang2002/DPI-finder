@@ -1,199 +1,201 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FPS 遊戲 - 完整版</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
-  <style>
-    body { margin: 0; font-family: Arial; }
-    #app { position: relative; }
-    canvas { display: block; background: #111; width: 100%; height: 80vh; }
-    #hud { position: absolute; top: 10px; left: 10px; color: white; }
-    #hud div { margin-bottom: 5px; }
-    #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content:center; align-items:center; background: rgba(0,0,0,0.7); flex-direction: column; color: white; }
-    #endBtn { display: none; padding: 10px 20px; font-size: 18px; margin-top: 10px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FPS 遊戲 - 完整版</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+<style>
+  body { margin:0; font-family: Arial; background: #111; }
+  #app { position: relative; width: 100%; height: 100vh; overflow: hidden; }
+  canvas { display:block; width:100%; height:100%; background:#111; }
+  #hud { position: absolute; top: 10px; left: 10px; color:white; }
+  #hud div { margin-bottom:5px; font-size:18px; }
+  #menu { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; flex-direction:column; background: rgba(0,0,0,0.8); color:white; }
+  #menu h1 { font-size:32px; margin-bottom:20px; }
+  #menu button { padding:10px 20px; font-size:20px; cursor:pointer; }
+  #endBtn { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); padding:10px 20px; font-size:20px; display:none; cursor:pointer; }
+</style>
 </head>
 <body>
-  <div id="app">
-    <canvas id="scene"></canvas>
-
-    <div id="hud">
-      <div>分數: <span id="scoreLabel">0</span></div>
-      <div>剩餘時間: <span id="timeLabel">30</span>s</div>
-    </div>
-
-    <div id="menu">
-      <h1>FPS 靈敏度練習</h1>
-      <button id="playBtn">開始自由練習</button>
-    </div>
-
-    <button id="endBtn">結束</button>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div id="hud">
+    <div>分數: <span id="scoreLabel">0</span></div>
+    <div>剩餘時間: <span id="timeLabel">30</span>s</div>
   </div>
+  <div id="menu">
+    <h1>FPS 靈敏度練習</h1>
+    <button id="playBtn">開始自由練習</button>
+  </div>
+  <button id="endBtn">結束</button>
+</div>
 
-  <script type="module">
-    // ---------------- Supabase ----------------
-    const supabaseUrl = 'https://owjmyizqlnfnjgbowqma.supabase.co';
-    const supabaseAnonKey = 'sb_publishable_9hC0ccCj3t9gk6O6T3LKhw_FLvAn7Tu';
-    const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+<script type="module">
+  // ---------------- Supabase ----------------
+  const supabaseUrl = 'https://owjmyizqlnfnjgbowqma.supabase.co';
+  const supabaseAnonKey = 'sb_publishable_9hC0ccCj3t9gk6O6T3LKhw_FLvAn7Tu';
+  const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-    async function saveScore(score){
-      const { data, error } = await supabase.from('scores').insert([{ score }]);
-      if(error) console.error('存分數失敗', error);
-      else console.log('分數已存入資料庫', data);
+  async function saveScore(score){
+    const { data, error } = await supabase.from('scores').insert([{ score }]);
+    if(error) console.error('存分數失敗', error);
+    else console.log('分數已存入資料庫', data);
+  }
+
+  // ---------------- Three.js 遊戲 ----------------
+  const canvas = document.querySelector("#scene");
+  const appRoot = document.querySelector("#app");
+  const menu = document.querySelector("#menu");
+  const playBtn = document.querySelector("#playBtn");
+  const endBtn = document.getElementById("endBtn");
+  const scoreLabel = document.getElementById("scoreLabel");
+  const timeLabel = document.getElementById("timeLabel");
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color("#0d0f12");
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 200);
+  camera.position.set(0,1.6,6);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+
+  const ambient = new THREE.AmbientLight(0xffffff,0.5);
+  scene.add(ambient);
+  const dirLight = new THREE.DirectionalLight(0xffffff,0.8);
+  dirLight.position.set(3,8,4);
+  scene.add(dirLight);
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:"#1c2026", roughness:0.9}));
+  floor.rotation.x = -Math.PI/2; scene.add(floor);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color:"#15181d", roughness:0.7 });
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(200,40), wallMat);
+  backWall.position.set(0,20,-40);
+  scene.add(backWall);
+
+  const targetMat = new THREE.MeshStandardMaterial({ color:"#e95f4f" });
+  const targetGeo = new THREE.SphereGeometry(0.35,18,18);
+  const raycaster = new THREE.Raycaster();
+  const targets = [];
+
+  const keys = new Set();
+  let pointerLocked = false;
+
+  const state = { score:0, shots:0, hits:0, timeLeft:30, targetCount:3, currentSens:0.35, userSens:0.35 };
+
+  function updateHud(){
+    scoreLabel.textContent = state.score;
+    timeLabel.textContent = state.timeLeft;
+  }
+
+  function lockPointer(){ if(!pointerLocked) canvas.requestPointerLock(); }
+
+  function spawnTarget(){
+    const angle = THREE.MathUtils.degToRad(THREE.MathUtils.randFloat(-40,40));
+    const distance = THREE.MathUtils.randFloat(6,14);
+    const height = THREE.MathUtils.randFloat(1.1,3.2);
+    const x = Math.sin(angle)*distance;
+    const z = Math.cos(angle)*-distance;
+    const mesh = new THREE.Mesh(targetGeo, targetMat.clone());
+    mesh.position.set(x,height,z);
+    scene.add(mesh);
+    targets.push({ mesh, hit:false });
+  }
+
+  function ensureTargets(){
+    while(targets.length < state.targetCount) spawnTarget();
+  }
+
+  function clearTargets(){
+    while(targets.length){
+      const t = targets.pop();
+      scene.remove(t.mesh);
     }
+  }
 
-    // ---------------- Three.js 遊戲 ----------------
-    const canvas = document.querySelector("#scene");
-    const appRoot = document.querySelector("#app");
-    const menu = document.querySelector("#menu");
-    const playBtn = document.querySelector("#playBtn");
-    const endBtn = document.getElementById("endBtn");
-    const scoreLabel = document.getElementById("scoreLabel");
-    const timeLabel = document.getElementById("timeLabel");
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#0d0f12");
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 200);
-    camera.position.set(0,1.6,6);
-
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-
-    const ambient = new THREE.AmbientLight(0xffffff,0.5);
-    scene.add(ambient);
-    const dirLight = new THREE.DirectionalLight(0xffffff,0.8);
-    dirLight.position.set(3,8,4);
-    scene.add(dirLight);
-
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:"#1c2026", roughness:0.9}));
-    floor.rotation.x = -Math.PI/2; scene.add(floor);
-
-    const wallMat = new THREE.MeshStandardMaterial({ color:"#15181d", roughness:0.7 });
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(200,40), wallMat);
-    backWall.position.set(0,20,-40);
-    scene.add(backWall);
-
-    const targetMat = new THREE.MeshStandardMaterial({ color:"#e95f4f" });
-    const targetGeo = new THREE.SphereGeometry(0.35,18,18);
-    const raycaster = new THREE.Raycaster();
-    const targets = [];
-
-    const keys = new Set();
-    let pointerLocked = false;
-
-    const state = { score:0, shots:0, hits:0, timeLeft:30, targetCount:3, currentSens:0.35, userSens:0.35 };
-
-    function updateHud(){
-      scoreLabel.textContent = state.score;
-      timeLabel.textContent = state.timeLeft;
-    }
-
-    function lockPointer(){ if(!pointerLocked) canvas.requestPointerLock(); }
-    function unlockPointer(){ if(pointerLocked) document.exitPointerLock(); }
-
-    function spawnTarget(){
-      const angle = THREE.MathUtils.degToRad(THREE.MathUtils.randFloat(-40,40));
-      const distance = THREE.MathUtils.randFloat(6,14);
-      const height = THREE.MathUtils.randFloat(1.1,3.2);
-      const x = Math.sin(angle)*distance;
-      const z = Math.cos(angle)*-distance;
-      const mesh = new THREE.Mesh(targetGeo, targetMat.clone());
-      mesh.position.set(x,height,z);
-      scene.add(mesh);
-      targets.push({ mesh, hit:false });
-    }
-
-    function ensureTargets(){
-      while(targets.length < state.targetCount) spawnTarget();
-    }
-
-    function clearTargets(){
-      while(targets.length){
-        const t = targets.pop();
-        scene.remove(t.mesh);
+  function shoot(){
+    if(!pointerLocked) return;
+    state.shots += 1;
+    raycaster.setFromCamera({x:0,y:0},camera);
+    const hit = raycaster.intersectObjects(targets.map(t=>t.mesh));
+    if(hit.length>0){
+      const mesh = hit[0].object;
+      const target = targets.find(t=>t.mesh===mesh);
+      if(target && !target.hit){
+        target.hit=true;
+        state.hits+=1;
+        state.score+=100;
+        window.gameScore = state.score;
+        scene.remove(mesh);
+        targets.splice(targets.indexOf(target),1);
+        ensureTargets();
       }
     }
+    updateHud();
+  }
 
-    function shoot(){
-      if(!pointerLocked) return;
-      state.shots += 1;
-      raycaster.setFromCamera({x:0,y:0},camera);
-      const hit = raycaster.intersectObjects(targets.map(t=>t.mesh));
-      if(hit.length>0){
-        const mesh = hit[0].object;
-        const target = targets.find(t=>t.mesh===mesh);
-        if(target && !target.hit){
-          target.hit=true;
-          state.hits+=1;
-          state.score+=100;
-          window.gameScore = state.score;
-          scene.remove(mesh);
-          targets.splice(targets.indexOf(target),1);
-          ensureTargets();
-        }
-      }
-      updateHud();
-    }
-
-    function resetStats(){
-      state.score=0; state.shots=0; state.hits=0; state.timeLeft=30;
-      window.gameScore = 0;
-      updateHud();
-    }
-
-    function startGame(){
-      resetStats();
-      clearTargets(); ensureTargets();
-      lockPointer();
-      menu.style.display = "none";
-      updateHud();
-
-      // 倒數 30 秒
-      const countdown = setInterval(()=>{
-        if(state.timeLeft<=0){
-          clearInterval(countdown);
-          pointerLocked=false;
-          alert("時間到！請按「結束」返回主選單");
-          endBtn.style.display = "inline-block";
-        }else{
-          state.timeLeft -= 1;
-          updateHud();
-        }
-      },1000);
-    }
-
-    function animate(){
-      requestAnimationFrame(animate);
-      renderer.render(scene,camera);
-    }
-
-    window.addEventListener("mousedown", e=>{
-      if(e.button===0 && pointerLocked) shoot();
-      if(!pointerLocked) lockPointer();
-    });
-
-    window.addEventListener("pointerlockchange", ()=>{ pointerLocked = document.pointerLockElement===canvas; });
-
-    window.addEventListener("resize", ()=>{
-      camera.aspect = window.innerWidth/window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth,window.innerHeight);
-    });
-
-    playBtn.addEventListener("click", startGame);
-
-    endBtn.addEventListener("click", async ()=>{
-      await saveScore(window.gameScore);
-      location.reload();
-    });
-
-    // 初始化
+  function resetStats(){
+    state.score=0; state.shots=0; state.hits=0; state.timeLeft=30;
     window.gameScore = 0;
-    animate();
-  </script>
+    updateHud();
+  }
+
+  function startGame(){
+    resetStats();
+    clearTargets(); ensureTargets();
+    menu.style.display = "none";
+    updateHud();
+
+    // Pointer lock 必須使用者互動觸發
+    canvas.addEventListener("mousedown", function initLock(){
+      canvas.requestPointerLock();
+      canvas.removeEventListener("mousedown", initLock);
+    });
+
+    // 倒數 30 秒
+    const countdown = setInterval(()=>{
+      if(state.timeLeft <= 0){
+        clearInterval(countdown);
+        pointerLocked=false;
+        alert("時間到！請按「結束」返回主選單");
+        endBtn.style.display = "inline-block";
+      } else {
+        state.timeLeft -= 1;
+        updateHud();
+      }
+    },1000);
+  }
+
+  function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene,camera);
+  }
+
+  window.addEventListener("mousedown", e=>{
+    if(e.button===0 && pointerLocked) shoot();
+  });
+
+  window.addEventListener("pointerlockchange", ()=>{ pointerLocked = document.pointerLockElement===canvas; });
+
+  window.addEventListener("resize", ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+  });
+
+  playBtn.addEventListener("click", startGame);
+
+  endBtn.addEventListener("click", async ()=>{
+    await saveScore(window.gameScore);
+    location.reload();
+  });
+
+  // 初始化
+  window.gameScore = 0;
+  animate();
+</script>
 </body>
 </html>
