@@ -112,4 +112,58 @@
 
     <script type="module" src="/src/main.js"></script>
   </body>
+  <!DOCTYPE html>
+<html>
+  <head>
+    <title>我的遊戲</title>
+    <!-- 1️⃣ 先載入 Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+  </head>
+  <body>
+    <h1>遊戲畫面</h1>
+    <p>你的分數: <span id="score">0</span></p>
+
+    <!-- 2️⃣ 這裡可以放存分數按鈕（或直接用 JS 生成） -->
+
+    <!-- 3️⃣ 在 body 最後放 <script> 區塊 -->
+    <script>
+      // 初始化 Supabase
+      const supabaseUrl = '你的SUPABASE_URL';
+      const supabaseAnonKey = '你的SUPABASE_ANON_KEY';
+      const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+      let playerScore = 0; // 遊戲分數
+
+      // 存分數函式
+      async function saveScore(score) {
+        const { data, error } = await supabase
+          .from('scores')
+          .insert([{ score }]);
+        if (error) {
+          console.error('存分數失敗', error);
+        } else {
+          console.log('分數已存入資料庫', data);
+          alert(`分數 ${score} 已存入！`);
+        }
+      }
+
+      // 更新頁面分數顯示（模擬遊戲分數變動）
+      function updateScore(newScore) {
+        playerScore = newScore;
+        document.getElementById('score').innerText = playerScore;
+      }
+
+      // 生成存分數按鈕
+      const btn = document.createElement('button');
+      btn.innerText = '存分數';
+      btn.onclick = () => saveScore(playerScore);
+      document.body.appendChild(btn);
+
+      // 模擬遊戲增加分數
+      setInterval(() => {
+        updateScore(playerScore + 10);
+      }, 2000);
+    </script>
+  </body>
+</html>
 </html>
