@@ -1,122 +1,115 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FPS 遊戲 - 修正版</title>
-<script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
-<style>
-body{margin:0;font-family:Arial;background:#111;}
-#app{position:relative;width:100%;height:100vh;overflow:hidden;}
-canvas{display:block;width:100%;height:100%;background:#111;}
-#hud{position:absolute;top:10px;left:10px;color:white;font-size:18px;}
-#menu{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;justify-content:center;align-items:center;flex-direction:column;background:rgba(0,0,0,0.8);color:white;}
-#menu h1{font-size:32px;margin-bottom:20px;}
-#menu button{padding:10px 20px;font-size:20px;cursor:pointer;}
-#endBtn{position:absolute;bottom:50px;left:50%;transform:translateX(-50%);padding:10px 20px;font-size:20px;display:none;cursor:pointer;}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FPS 靈敏度校準 - Web 3D</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 </head>
 <body>
-<div id="app">
-  <canvas id="scene"></canvas>
-  <div id="hud">
-    <div>分數: <span id="scoreLabel">0</span></div>
-    <div>剩餘時間: <span id="timeLabel">30</span>s</div>
+  <div id="app">
+    <canvas id="scene"></canvas>
+    <div id="hud">
+      <div id="hud-left">
+        <div class="hud-row">模式: <span id="modeLabel">自由練習</span></div>
+        <div class="hud-row">時間: <span id="timeLabel">00:00</span></div>
+        <div class="hud-row">分數: <span id="scoreLabel">0</span></div>
+      </div>
+      <div id="hud-right">
+        <div class="hud-row">射擊: <span id="shotsLabel">0</span></div>
+        <div class="hud-row">命中: <span id="hitsLabel">0</span></div>
+        <div class="hud-row">命中率: <span id="accLabel">0%</span></div>
+        <div class="hud-row">靈敏度: <span id="sensLabel">0.35</span></div>
+      </div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="menu">
+      <div class="panel">
+        <h1>FPS 靈敏度練習</h1>
+        <p class="sub">1600 DPI / VALORANT Sens</p>
+        <div class="section">
+          <label for="sensRange">靈敏度</label>
+          <input id="sensRange" type="range" min="0.05" max="1.00" step="0.01" value="0.35" />
+          <div class="small">當前: <span id="sensValue">0.35</span></div>
+        </div>
+        <div class="section">
+          <label for="dpiInput">DPI</label>
+          <input id="dpiInput" type="number" min="100" max="32000" step="50" value="1600" />
+          <div class="small">eDPI: <span id="edpiValue">560</span></div>
+        </div>
+        <div class="section">
+          <button id="playBtn">開始自由練習</button>
+        </div>
+        <div class="section small">點擊畫面進入滑鼠鎖定，Esc 退出。</div>
+      </div>
+    </div>
   </div>
-  <div id="menu">
-    <h1>FPS 靈敏度練習</h1>
-    <button id="playBtn">開始自由練習</button>
-  </div>
-  <button id="endBtn">結束</button>
-</div>
 
-<script type="module">
-const supabaseUrl = 'https://owjmyizqlnfnjgbowqma.supabase.co';
-const supabaseAnonKey = 'sb_publishable_9hC0ccCj3t9gk6O6T3LKhw_FLvAn7Tu';
-const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+  <div id="leaderboard"></div>
 
-async function saveScore(score){
-  const {data,error} = await supabase.from('scores').insert([{score}]);
-  if(error) console.error('存分數失敗',error);
-  else console.log('分數已存入資料庫',data);
-}
+  <h1>遊戲畫面</h1>
+  <p>你的分數: <span id="score">0</span></p>
 
-// ----------------- Three.js FPS -----------------
-const canvas=document.querySelector("#scene");
-const menu=document.querySelector("#menu");
-const playBtn=document.querySelector("#playBtn");
-const endBtn=document.getElementById("endBtn");
-const scoreLabel=document.getElementById("scoreLabel");
-const timeLabel=document.getElementById("timeLabel");
+  <script>
+    // 初始化 Supabase
+    const supabaseUrl = 'https://owjmyizqlnfnjgbowqma.supabase.co';
+    const supabaseAnonKey = 'sb_publishable_9hC0ccCj3t9gk6O6T3LKhw_FLvAn7Tu';
+    const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-const scene=new THREE.Scene();
-scene.background=new THREE.Color("#0d0f12");
-const camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,200);
-camera.position.set(0,1.6,6);
+    let playerScore = 0;
 
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setSize(window.innerWidth,window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    // 存分數函式
+    async function saveScore(score) {
+      const { data, error } = await supabase
+        .from('scores')
+        .insert([{ score }]);
+      if (error) {
+        console.error('存分數失敗', error);
+      } else {
+        console.log('分數已存入資料庫', data);
+        alert(`分數 ${score} 已存入！`);
+      }
+    }
 
-scene.add(new THREE.AmbientLight(0xffffff,0.5));
-const dirLight=new THREE.DirectionalLight(0xffffff,0.8);
-dirLight.position.set(3,8,4);
-scene.add(dirLight);
+    // 讀排行榜
+    async function getTopScores() {
+      const { data, error } = await supabase
+        .from('scores')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(10);
+      if (error) {
+        console.error('讀排行榜失敗', error);
+        return [];
+      }
+      return data;
+    }
 
-const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:"#1c2026",roughness:0.9}));
-floor.rotation.x=-Math.PI/2; scene.add(floor);
-const backWall=new THREE.Mesh(new THREE.PlaneGeometry(200,40),new THREE.MeshStandardMaterial({color:"#15181d",roughness:0.7}));
-backWall.position.set(0,20,-40); scene.add(backWall);
+    // 顯示排行榜
+    getTopScores().then(top => {
+      const board = document.getElementById('leaderboard');
+      board.innerHTML = top.map((item, i) => `<p>#${i+1}: ${item.score}</p>`).join('');
+    });
 
-const targetMat=new THREE.MeshStandardMaterial({color:"#e95f4f"});
-const targetGeo=new THREE.SphereGeometry(0.35,18,18);
-const raycaster=new THREE.Raycaster();
-const targets=[];
+    // 更新頁面分數顯示（模擬遊戲分數增加）
+    function updateScore(newScore) {
+      playerScore = newScore;
+      document.getElementById('score').innerText = playerScore;
+      document.getElementById('scoreLabel').innerText = playerScore;
+    }
 
-let pointerLocked=false;
-const state={score:0,shots:0,hits:0,timeLeft:30,targetCount:3,currentSens:0.35,userSens:0.35};
+    // 生成存分數按鈕
+    const btn = document.createElement('button');
+    btn.innerText = '存分數';
+    btn.onclick = () => saveScore(playerScore);
+    document.body.appendChild(btn);
 
-function updateHud(){scoreLabel.textContent=state.score;timeLabel.textContent=state.timeLeft;}
-function spawnTarget(){const angle=THREE.MathUtils.degToRad(THREE.MathUtils.randFloat(-40,40));
-const distance=THREE.MathUtils.randFloat(6,14);const height=THREE.MathUtils.randFloat(1.1,3.2);
-const x=Math.sin(angle)*distance,z=Math.cos(angle)*-distance;
-const mesh=new THREE.Mesh(targetGeo,targetMat.clone());
-mesh.position.set(x,height,z);scene.add(mesh);targets.push({mesh,hit:false});}
-function ensureTargets(){while(targets.length<state.targetCount) spawnTarget();}
-function clearTargets(){while(targets.length){scene.remove(targets.pop().mesh);}}
+    // 模擬遊戲增加分數
+    setInterval(() => {
+      updateScore(playerScore + 10);
+    }, 2000);
+  </script>
 
-function shoot(){if(!pointerLocked) return; state.shots+=1;
-raycaster.setFromCamera({x:0,y:0},camera);const hit=raycaster.intersectObjects(targets.map(t=>t.mesh));
-if(hit.length>0){const mesh=hit[0].object;const target=targets.find(t=>t.mesh===mesh);
-if(target&&!target.hit){target.hit=true;state.hits+=1;state.score+=100;window.gameScore=state.score;scene.remove(mesh);targets.splice(targets.indexOf(target),1);ensureTargets();}}updateHud();}
-
-function resetStats(){state.score=0;state.shots=0;state.hits=0;state.timeLeft=30;window.gameScore=0;updateHud();clearTargets();ensureTargets();}
-
-function animate(){requestAnimationFrame(animate);renderer.render(scene,camera);}
-animate();
-
-window.addEventListener("resize",()=>{camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});
-
-window.addEventListener("mousedown",e=>{if(e.button===0&&pointerLocked) shoot();});
-
-document.addEventListener("pointerlockchange",()=>{pointerLocked=document.pointerLockElement===canvas;});
-
-playBtn.addEventListener("click",()=>{
-  menu.style.display="none";
-  canvas.requestPointerLock(); // ✅ 直接在使用者 click 觸發 Pointer Lock
-  resetStats();
-  // 倒數 30 秒
-  const countdown=setInterval(()=>{
-    if(state.timeLeft<=0){clearInterval(countdown);pointerLocked=false;endBtn.style.display="inline-block";}
-    else{state.timeLeft-=1;updateHud();}
-  },1000);
-});
-
-endBtn.addEventListener("click",async()=>{
-  await saveScore(window.gameScore);
-  location.reload();
-});
-</script>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
