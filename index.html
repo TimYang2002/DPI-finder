@@ -4,8 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FPS 靈敏度校準 - Web 3D</title>
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
   </head>
   <body>
+    <script>
+  const supabaseUrl = 'https://owjmyizqlnfnjgbowqma.supabase.co'
+  const supabaseAnonKey = 'sb_publishable_9hC0ccCj3t9gk6O6T3LKhw_FLvAn7Tu'
+
+  const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey)
+</script>
     <div id="app">
       <canvas id="scene"></canvas>
 
